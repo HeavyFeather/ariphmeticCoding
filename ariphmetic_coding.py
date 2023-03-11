@@ -6,6 +6,11 @@ from collections import Counter
 def keyFunc(item): # Ключ для сортировки списка перед созданием словаря
    return item[1]
 
+def get_key(freq_table, value):
+    for k, v in freq_table.items():
+        if v == value:
+            return k
+
 def create_table(word):
     tmp_arr = [] # список для подсчёта частоты символов
 
@@ -80,24 +85,25 @@ def alg_decoding():
     lenght = int(lenght)
     
     isFirstValuePassed = False # Эти переменные - небольшой костыль для нормальной работы со словарями (из-за особенности взятия по ключу)
-    prevSym = ""
+    prevSym = 0
 
     for i in range(lenght):
-        for leter in freq_table_decode.values():
+        for value in freq_table_decode.values():
             if isFirstValuePassed == False:
-                prevSym = sym
+                prevSym = value
                 isFirstValuePassed = True
                 continue
 
-            interval = (left + (right - left) * freq_table_decode[prevSym], 
-                        left + (right - left) * freq_table_decode[sym])
-            prevSym = sym
- 
+            interval = (left + (right - left) * prevSym, 
+                        left + (right - left) * value)
+
             if interval[0] <= code < interval[1]:
-                word += freq_table_decode[prevSym]
-                code = (code - interval[0]) / (interval[1] - interval[0])
+                current_sym = get_key(freq_table_decode, interval[1])
+                word += current_sym
+                isFirstValuePassed = False
                 break
 
+    fpOut.write(word)
     print("[+] Decoding of " + filenameIn + ".encoded complited!!!") 
     os.remove(filenameIn + '.pickle') # Удаляем словарь с кодировкой за безнабностью
     print("Decoder file: " + filenameIn + ".pickle removed")
