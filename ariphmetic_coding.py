@@ -1,6 +1,5 @@
-import random
 import pickle
-import os
+import struct
 from collections import Counter
 
 def keyFunc(item): # Ключ для сортировки списка перед созданием словаря
@@ -11,106 +10,96 @@ def get_key(freq_table, value):
         if v == value:
             return k
 
+def next_value(freq_table, value):
+    for k, v in freq_table.items():
+        if value < v:
+            return v
+
 def create_table(word):
     tmp_arr = [] # список для подсчёта частоты символов
-
     for char, count in Counter(word).items(): 
         tmp_arr.append((char, count))
     
     tmp_arr.sort(key = keyFunc, reverse = True)
+    
     freq_table = {char: count / len(word) for char, count in tmp_arr} # Таблица с частотой
     
     i = 0
-    
+     
     for char in freq_table: # Приводим заначения таблицы к диапазону
         i += freq_table[char]
         freq_table[char] = i
     freq_table["Lenght"] = len(word) # Добавли значение длины исходного слова для декодировки
     print("[+] Table created")
-    print(freq_table)
     return freq_table
 
 def alg_encoding(): # Функция для кодирования
     fileName = input("Enter name of file you want to encode: ")
-    fileNameOut = fileName + ".encoded"
     fpIn = open(fileName, "r")
-    fpOut = open(fileNameOut, "w")
 
     word = fpIn.read()
 
     freq_table = create_table(word)
 
-    with open(fileName + ".pickle", 'wb') as f: # Дампаем словарь c диапазонами и длинной
-        pickle.dump(freq_table, f)
-
-    left, right = 0, 1
-    isFirstValuePassed = False # Эти переменные - небольшой костыль для нормальной работы со словарями (из-за особенности взятия по ключу)
-    prevSym = ""
+    coded_message = ''
+    left, right = 0, 10000 
+    count = 0
     for sym in word:
-        if isFirstValuePassed == False:
-            prevSym = sym
-            isFirstValuePassed = True
-            continue
+        left = left + (right - left) * freq_table[sym]
+        right = left + (right - left) * next_value(freq_table, freq_table[sym]) -1
+        count += 1
 
-        left, right = (left + (right - left) * freq_table[prevSym],
-                        left + (right - left) * freq_table[sym])
-        prevSym = sym
-        
-    code = random.uniform(left, right)
+        if count == freq_table["Lenght"]:
+            coded_message += str(int(left))
+        elif (right - left) < 1000:
+            coded_message += str(int(left / 1000)) 
+            left = int(left) % 1000 * 10
+            right = int(right) % 1000 * 10 + 9
     
-    code = str(code)
 
-    fpOut.write(code) # Запись сообщения в файл
-    
-    print("[+] Encoding complete\nCreated file: " + fileNameOut + "\nCreated code file: " + fileName + ".pickle")
+    code = "{0:b}".format(int(coded_message))
 
+    pack = b'' 
+
+    for i in range(0, len(code), 8):
+        pack += struct.pack('B', int(code[i: i + 8], 2))
+
+    with open(fileName + ".encoded", 'wb') as f: # Дампаем словарь с кодами символов, затем записываем код
+        pickle.dump(freq_table, f)
+        f.write(pack)
+
+    print(f"[+] Encoding complete\nCreated file: {fileName}.encoded")
+    print(coded_message) 
     fpIn.close()
-    fpOut.close()
 
 def alg_decoding():
-    filenameIn = input("Enter name of file you want to decode without '.encoded': ")
-    fpIn = open(filenameIn + ".encoded", "r")
-    fpOut = open(filenameIn, "w")
+    filenameIn = input("Enter name of file you want to decode: ")
+     
+    with open(filenameIn, 'rb') as f: # Берём дамп словаря с кодировкой и само сообщение
+        freq_table = pickle.load(f)
+        unpack = f.read()
 
-    code = fpIn.read()
-    code = float(code)
-    word = ''
-    left, right = 0, 1
+    code_unpack = ''
 
-    with open(filenameIn + '.pickle', 'rb') as f: # Берём дамп словаря с диапазонами и длинной
-        freq_table_decode = pickle.load(f)
+    for i in unpack:
+        code_unpack += '{0:08b}'.format(i)
 
-    lenght = freq_table_decode["Lenght"]
+    fileName = filenameIn.replace(".encoded", "")
+    fpOut = open(fileName, 'w')
+     
+    code = int(code_unpack, 2)
 
-    lenght = int(lenght)
-    
-    isFirstValuePassed = False # Эти переменные - небольшой костыль для нормальной работы со словарями (из-за особенности взятия по ключу)
-    prevSym = 0
+    left, right = 0, 10000
 
-    for i in range(lenght):
-        for value in freq_table_decode.values():
-            if isFirstValuePassed == False:
-                prevSym = value
-                isFirstValuePassed = True
-                continue
+    for value in code:
+        
 
-            interval = (left + (right - left) * prevSym, 
-                        left + (right - left) * value)
 
-            if interval[0] <= code < interval[1]:
-                current_sym = get_key(freq_table_decode, interval[1])
-                word += current_sym
-                isFirstValuePassed = False
-                break
 
-    fpOut.write(word)
-    print("[+] Decoding of " + filenameIn + ".encoded complited!!!") 
-    os.remove(filenameIn + '.pickle') # Удаляем словарь с кодировкой за безнабностью
-    print("Decoder file: " + filenameIn + ".pickle removed")
-    fpIn.close()
+
+    #fpOut.write("")
+    print(f"[+] Decoding of {fileName}.encoded complited!!!") 
     fpOut.close()
-    os.remove(filenameIn + '.encoded') # Удалем закодированный файл
-    print("Encoded file: " + filenameIn + ".encoded removed")
 
 def main():
     i = input("Enter 1 to encrypt, or 2 to decrypt: ")
