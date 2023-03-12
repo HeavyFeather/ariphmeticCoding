@@ -91,8 +91,10 @@ def alg_decoding():
 
     left, right = 0, 10000
 
-    for value in code:
-        
+    for value in freq_table["Lenght"]:
+        code 
+        left = left + (right - left) * freq_table[]
+
 
 
 
